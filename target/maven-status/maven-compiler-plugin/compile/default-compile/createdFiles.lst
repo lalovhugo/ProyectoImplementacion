@@ -1,0 +1,4 @@
+com/gamelog/controller/GameController.class
+com/gamelog/repository/GameRepository.class
+com/gamelog/models/Game.class
+com/gamelog/GameLogApplication.class
