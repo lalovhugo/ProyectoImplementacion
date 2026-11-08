@@ -1,5 +1,6 @@
 package com.gamelog.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 @Entity
@@ -14,10 +15,19 @@ public class Game {
     private String titulo;
 
     private String plataformas;
-    
+
     private Integer anio;
 
-    // Constructores vacíos y con parámetros requeridos por JPA
+    @ManyToOne
+    @JoinColumn(name = "genre_id")
+    @JsonIgnoreProperties("games")
+    private Genre genre;
+
+    @ManyToOne
+    @JoinColumn(name = "platform_id")
+    @JsonIgnoreProperties("games")
+    private Platform platform;
+
     public Game() {
     }
 
@@ -27,7 +37,6 @@ public class Game {
         this.anio = anio;
     }
 
-    // Getters y Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -39,4 +48,10 @@ public class Game {
 
     public Integer getAnio() { return anio; }
     public void setAnio(Integer anio) { this.anio = anio; }
+
+    public Genre getGenre() { return genre; }
+    public void setGenre(Genre genre) { this.genre = genre; }
+
+    public Platform getPlatform() { return platform; }
+    public void setPlatform(Platform platform) { this.platform = platform; }
 }

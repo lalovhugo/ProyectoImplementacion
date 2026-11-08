@@ -242,3 +242,101 @@ Los datos de videojuegos y las imágenes provienen de [RAWG](https://rawg.io). S
 2. Definir la variable de entorno `RAWG_API_KEY` con la clave obtenida en [rawg.io/apidocs](https://rawg.io/apidocs).
 3. Ejecutar `mvn spring-boot:run`.
 4. Visitar `http://localhost:8080/hello`.
+---
+
+## Documentación de relaciones (parte 4)
+
+### Relaciones 1 a muchos identificadas en el proyecto
+
+1. **Género a videojuegos (`Genre` 1 : N `Game`):** Un género (`Genre`) contiene una colección de videojuegos (`List<Game> games`), mientras que cada videojuego (`Game`) está asociado a un género mediante la llave foránea `genre_id`.
+2. **Plataforma a videojuegos (`Platform` 1 : N `Game`):** Una plataforma (`Platform`) contiene una colección de videojuegos (`List<Game> games`), mientras que cada videojuego (`Game`) referencia a su plataforma mediante la llave foránea `platform_id`.
+3. **Usuario y juego con reseñas y diario (`User` / `Game` 1 : N `Review` / `GameLogEntry`):** En el modelo general del sistema, un usuario y un videojuego concentran múltiples reseñas y registros en el diario de juego.
+
+### Diagrama entidad-relación de la base de datos
+
+```mermaid
+erDiagram
+    GENRES ||--o{ GAMES : "clasifica (1:N)"
+    PLATFORMS ||--o{ GAMES : "ejecuta (1:N)"
+    USERS ||--o{ REVIEWS : "escribe (1:N)"
+    GAMES ||--o{ REVIEWS : "recibe (1:N)"
+    USERS ||--o{ GAME_LOG_ENTRIES : "registra (1:N)"
+    GAMES ||--o{ GAME_LOG_ENTRIES : "aparece_en (1:N)"
+
+    GENRES {
+        Long id PK
+        String name UK
+        String description
+    }
+
+    PLATFORMS {
+        Long id PK
+        String name UK
+        String manufacturer
+    }
+
+    GAMES {
+        Long id PK
+        String titulo
+        String plataformas
+        Integer anio
+        Long genre_id FK
+        Long platform_id FK
+    }
+
+    USERS {
+        Long id PK
+        String username
+        String email
+        String rol
+    }
+
+    REVIEWS {
+        Long id PK
+        String texto
+        Double calificacion
+        LocalDate fecha
+        Long user_id FK
+        Long game_id FK
+    }
+
+    GAME_LOG_ENTRIES {
+        Long id PK
+        String estado
+        Double calificacion
+        LocalDate fecha
+        Long user_id FK
+        Long game_id FK
+    }
+```
+
+### Diagrama de clases y colecciones de objetos
+
+```mermaid
+classDiagram
+    class Genre {
+        -Long id
+        -String name
+        -String description
+        -List~Game~ games
+    }
+
+    class Platform {
+        -Long id
+        -String name
+        -String manufacturer
+        -List~Game~ games
+    }
+
+    class Game {
+        -Long id
+        -String titulo
+        -String plataformas
+        -Integer anio
+        -Genre genre
+        -Platform platform
+    }
+
+    Genre "1" --> "0..*" Game : contiene coleccion List~Game~
+    Platform "1" --> "0..*" Game : contiene coleccion List~Game~
+```
