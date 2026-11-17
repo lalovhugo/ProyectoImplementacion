@@ -238,53 +238,15 @@ Los datos de videojuegos y las imágenes provienen de [RAWG](https://rawg.io). S
 
 ## Cómo ejecutar
 
-## Cómo ejecutar
-
 1. Abrir el repositorio en VS Code y elegir **Reopen in Container**.
 2. Levantar PostgreSQL: `docker compose up -d`.
 3. Definir la variable de entorno `RAWG_API_KEY` con la clave obtenida en [rawg.io/apidocs](https://rawg.io/apidocs).
 4. Ejecutar `mvn spring-boot:run`.
 5. Abrir Swagger en `http://localhost:8080/swagger-ui/index.html`.
+
 ---
 
 ## Documentación de relaciones (parte 4)
-
-
-## Documentación de Swagger, Lombok y ejecución (parte 5)
-
-Cambios realizados en la rama `feature/swagger-jwt`.
-
-1. Swagger / OpenAPI
-
-- Se agregó la dependencia `springdoc-openapi-starter-webmvc-ui` (versión 2.3.0, compatible con Spring Boot 3.2.x).
-- La documentación interactiva está en `http://localhost:8080/swagger-ui/index.html` y el contrato en `/v3/api-docs`.
-- Permite consultar y probar los endpoints de `platform-controller`, `genre-controller` y `developer-controller`, que están bajo `/api/admin/`.
-
- 2. Lombok
-
-- Se agregó la dependencia de Lombok, porque los modelos (`Platform`, `Genre`, `Developer`) usan `@Getter` y `@Setter`.
-- Se configuró `annotationProcessorPaths` en `maven-compiler-plugin`. El entorno de desarrollo usa Java 25 y, desde Java 23, el compilador ya no ejecuta los procesadores de anotaciones por defecto, por lo que los getters y setters no se generaban.
-
-3. Control de versiones
-
-- Se agregó `target/` al `.gitignore` y se quitó esa carpeta del repositorio.
-
-4. Relación muchos a muchos
-
-(pendiente)
-
-5. Autenticación JWT
-
-(pendiente)
-
-Problemas encontrados y soluciones
-
-| Problema | Causa | Solución |
-|----------|-------|----------|
-| `package lombok does not exist` | Faltaba la dependencia en el `pom.xml` | Agregar Lombok |
-| `cannot find symbol` en `getId()`, `setName()`, etc. | Java 25 no ejecuta Lombok sin configuración | Configurar `annotationProcessorPaths` |
-| `Connection to localhost:5432 refused` | El contenedor de PostgreSQL no estaba encendido | `docker compose up -d` |
-| `mvnw: no such file` | El repositorio no incluye el wrapper de Maven | Usar `mvn` directamente |
 
 ### Relaciones 1 a muchos identificadas en el proyecto
 
@@ -380,3 +342,90 @@ classDiagram
     Genre "1" --> "0..*" Game : contiene coleccion List~Game~
     Platform "1" --> "0..*" Game : contiene coleccion List~Game~
 ```
+
+---
+
+## Documentación de Swagger, Lombok, muchos a muchos y JWT (parte 5)
+
+Cambios realizados en la rama `feature/swagger-jwt`.
+
+### 1. Swagger / OpenAPI
+
+- Se agregó la dependencia `springdoc-openapi-starter-webmvc-ui` (versión 2.3.0, compatible con Spring Boot 3.2.x).
+- La documentación interactiva está en `http://localhost:8080/swagger-ui/index.html` y el contrato en `/v3/api-docs`.
+- Permite consultar y probar los endpoints de `platform-controller`, `genre-controller` y `developer-controller`, que están bajo `/api/admin/`.
+- Se creó `config/OpenApiConfig.java`: define el servidor como `/` para que "Try it out" funcione en Codespaces y registra el esquema `bearerAuth`, que habilita el botón **Authorize** para enviar el token JWT.
+
+### 2. Lombok
+
+- Se agregó la dependencia de Lombok, porque los modelos (`Platform`, `Genre`, `Developer`) usan `@Getter` y `@Setter`.
+- Se configuró `annotationProcessorPaths` en `maven-compiler-plugin`. El entorno de desarrollo usa Java 25 y, desde Java 23, el compilador ya no ejecuta los procesadores de anotaciones por defecto, por lo que los getters y setters no se generaban.
+
+### 3. Control de versiones
+
+- Se agregó `target/` al `.gitignore` y se quitó esa carpeta del repositorio.
+
+### 4. Relación muchos a muchos
+
+- Relación `Game` ↔ `Platform`: un videojuego puede estar en varias plataformas y una plataforma puede tener varios videojuegos. Sustituye la relación 1 a muchos anterior (`platform_id` en `games`).
+- `Game` es el lado dueño (`@ManyToMany` con `@JoinTable`) y `Platform` el lado inverso (`mappedBy = "platforms"`). Ambos usan `Set`.
+- Hibernate crea la tabla intermedia `game_platform` (`game_id`, `platform_id`) con `ddl-auto=update`.
+
+| Método | Ruta | Función |
+|--------|------|---------|
+| GET | `/api/games/{gameId}/platforms` | Ver las plataformas de un juego |
+| POST | `/api/games/{gameId}/platforms/{platformId}` | Asociar una plataforma a un juego |
+| DELETE | `/api/games/{gameId}/platforms/{platformId}` | Quitar una plataforma de un juego |
+
+```mermaid
+erDiagram
+    GAMES ||--o{ GAME_PLATFORM : "tiene"
+    PLATFORMS ||--o{ GAME_PLATFORM : "incluye"
+
+    GAME_PLATFORM {
+        Long game_id FK
+        Long platform_id FK
+    }
+```
+
+### 5. Autenticación JWT
+
+- Dependencias: `spring-boot-starter-security` y `jjwt` 0.12.5 (`jjwt-api`, `jjwt-impl`, `jjwt-jackson`).
+- Configuración en `application.properties`: `jwt.secret` (mínimo 32 caracteres, se puede definir con la variable de entorno `JWT_SECRET`) y `jwt.expiration-ms` (3600000, una hora).
+- Archivos nuevos:
+  - `models/User.java` y `repository/UserRepository.java`: entidad `User` (`username`, `email`, `passwordHash`, `rol`) en la tabla `users`.
+  - `security/JwtService.java`: genera el token y extrae el correo.
+  - `security/JwtFilter.java`: lee el encabezado `Authorization: Bearer <token>` e identifica al usuario en cada petición.
+  - `config/SecurityConfig.java`: reglas de acceso, sesión sin estado y cifrado BCrypt.
+  - `controller/AuthController.java`: registro e inicio de sesión.
+- Las contraseñas se guardan con BCrypt y el registro siempre crea usuarios con rol `USER`.
+
+| Método | Ruta | Acceso |
+|--------|------|--------|
+| POST | `/api/auth/register` | Público |
+| POST | `/api/auth/login` | Público (devuelve el JWT) |
+| GET | `/api/games/**` | Público |
+| POST, PUT, DELETE | `/api/games/**` | Solo ADMIN |
+| Cualquier método | `/api/admin/**` | Solo ADMIN |
+| Swagger (`/swagger-ui/**`, `/v3/api-docs/**`) | | Público |
+| Cualquier otra ruta | | Usuario con token |
+
+Uso en Swagger: registrar con `POST /api/auth/register`, iniciar sesión con `POST /api/auth/login`, copiar el `token` y pegarlo en el botón **Authorize**. Sin token, o con rol `USER`, las rutas de administrador responden `403`.
+
+Para volver administrador a un usuario:
+
+```bash
+docker exec -it gamelog-postgres psql -U postgres -d gamelogdb -c "UPDATE users SET rol='ADMIN' WHERE email='correo@ejemplo.com';"
+```
+
+### Problemas encontrados y soluciones
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `package lombok does not exist` | Faltaba la dependencia en el `pom.xml` | Agregar Lombok |
+| `cannot find symbol` en `getId()`, `setName()`, etc. | Java 25 no ejecuta Lombok sin configuración | Configurar `annotationProcessorPaths` |
+| `Connection to localhost:5432 refused` | El contenedor de PostgreSQL no estaba encendido | `docker compose up -d` |
+| `mvnw: no such file` | El repositorio no incluye el wrapper de Maven | Usar `mvn` directamente |
+| `Failed to fetch` al probar endpoints en Swagger | Swagger llamaba a `localhost:8080` y desde el navegador ese host no es el Codespace | Definir el servidor como `/` en `OpenApiConfig` |
+| `class AuthController is public, should be declared in a file named AuthController.java` | El nombre del archivo no coincidía con el de la clase | Renombrar el archivo |
+| `Malformed POM` | Las dependencias quedaron fuera de `<dependencies>` o había un espacio dentro de una etiqueta | Corregir la posición y la etiqueta en el `pom.xml` |
