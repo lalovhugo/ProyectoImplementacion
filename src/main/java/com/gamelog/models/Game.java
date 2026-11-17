@@ -1,5 +1,7 @@
 package com.gamelog.models;
 
+import java.util.HashSet;
+import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
@@ -23,10 +25,14 @@ public class Game {
     @JsonIgnoreProperties("games")
     private Genre genre;
 
-    @ManyToOne
-    @JoinColumn(name = "platform_id")
+    @ManyToMany
+    @JoinTable(
+        name = "game_platform",
+        joinColumns = @JoinColumn(name = "game_id"),
+        inverseJoinColumns = @JoinColumn(name = "platform_id")
+    )
     @JsonIgnoreProperties("games")
-    private Platform platform;
+    private Set<Platform> platforms = new HashSet<>();
 
     public Game() {
     }
@@ -52,6 +58,6 @@ public class Game {
     public Genre getGenre() { return genre; }
     public void setGenre(Genre genre) { this.genre = genre; }
 
-    public Platform getPlatform() { return platform; }
-    public void setPlatform(Platform platform) { this.platform = platform; }
+    public Set<Platform> getPlatforms() { return platforms; }
+    public void setPlatforms(Set<Platform> platforms) { this.platforms = platforms; }
 }
