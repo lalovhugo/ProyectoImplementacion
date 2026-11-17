@@ -238,13 +238,53 @@ Los datos de videojuegos y las imágenes provienen de [RAWG](https://rawg.io). S
 
 ## Cómo ejecutar
 
+## Cómo ejecutar
+
 1. Abrir el repositorio en VS Code y elegir **Reopen in Container**.
-2. Definir la variable de entorno `RAWG_API_KEY` con la clave obtenida en [rawg.io/apidocs](https://rawg.io/apidocs).
-3. Ejecutar `mvn spring-boot:run`.
-4. Visitar `http://localhost:8080/hello`.
+2. Levantar PostgreSQL: `docker compose up -d`.
+3. Definir la variable de entorno `RAWG_API_KEY` con la clave obtenida en [rawg.io/apidocs](https://rawg.io/apidocs).
+4. Ejecutar `mvn spring-boot:run`.
+5. Abrir Swagger en `http://localhost:8080/swagger-ui/index.html`.
 ---
 
 ## Documentación de relaciones (parte 4)
+
+
+## Documentación de Swagger, Lombok y ejecución (parte 5)
+
+Cambios realizados en la rama `feature/swagger-jwt`.
+
+1. Swagger / OpenAPI
+
+- Se agregó la dependencia `springdoc-openapi-starter-webmvc-ui` (versión 2.3.0, compatible con Spring Boot 3.2.x).
+- La documentación interactiva está en `http://localhost:8080/swagger-ui/index.html` y el contrato en `/v3/api-docs`.
+- Permite consultar y probar los endpoints de `platform-controller`, `genre-controller` y `developer-controller`, que están bajo `/api/admin/`.
+
+ 2. Lombok
+
+- Se agregó la dependencia de Lombok, porque los modelos (`Platform`, `Genre`, `Developer`) usan `@Getter` y `@Setter`.
+- Se configuró `annotationProcessorPaths` en `maven-compiler-plugin`. El entorno de desarrollo usa Java 25 y, desde Java 23, el compilador ya no ejecuta los procesadores de anotaciones por defecto, por lo que los getters y setters no se generaban.
+
+3. Control de versiones
+
+- Se agregó `target/` al `.gitignore` y se quitó esa carpeta del repositorio.
+
+4. Relación muchos a muchos
+
+(pendiente)
+
+5. Autenticación JWT
+
+(pendiente)
+
+Problemas encontrados y soluciones
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `package lombok does not exist` | Faltaba la dependencia en el `pom.xml` | Agregar Lombok |
+| `cannot find symbol` en `getId()`, `setName()`, etc. | Java 25 no ejecuta Lombok sin configuración | Configurar `annotationProcessorPaths` |
+| `Connection to localhost:5432 refused` | El contenedor de PostgreSQL no estaba encendido | `docker compose up -d` |
+| `mvnw: no such file` | El repositorio no incluye el wrapper de Maven | Usar `mvn` directamente |
 
 ### Relaciones 1 a muchos identificadas en el proyecto
 
