@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameLog</title>
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem("theme")
+        || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    </script>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="side" id="side"></aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="searchbar">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="Buscar juegos..." autocomplete="off">
+        </div>
+        <button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button>
+        <nav class="auth" id="auth"></nav>
+      </header>
+
+      <main id="view"></main>
+
+      <footer class="foot">
+        Datos de videojuegos por <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a>
+      </footer>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden"><div class="modal-box" id="modalBox"></div></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
