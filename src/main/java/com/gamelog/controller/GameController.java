@@ -67,4 +67,13 @@ public class GameController {
         game.getPlatforms().removeIf(p -> p.getId().equals(platformId));
         return ResponseEntity.ok(gameRepository.save(game));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteGame(@PathVariable Long id) {
+        if (!gameRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        gameRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
 }
