@@ -33,13 +33,20 @@ public class JwtFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             try {
-                String email = jwtService.extractEmail(header.substring(7));
-                userRepository.findByEmail(email).ifPresent(user -> {
-                    var auth = new UsernamePasswordAuthenticationToken(
-                            user.getEmail(), null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRol())));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                });
+                String token = header.substring(7);
+                // Los tokens temporales del login (2fa / setup) nunca autentican
+                if ("full".equals(jwtService.extractScope(token))) {
+                    String email = jwtService.extractEmail(token);
+                    userRepository.findByEmail(email)
+                            // Un ADMIN sin 2FA activado nunca queda autenticado
+                            .filter(u -> !"ADMIN".equals(u.getRol()) || u.isTotpEnabled())
+                            .ifPresent(user -> {
+                                var auth = new UsernamePasswordAuthenticationToken(
+                                        user.getEmail(), null,
+                                        List.of(new SimpleGrantedAuthority("ROLE_" + user.getRol())));
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                            });
+                }
             } catch (JwtException | IllegalArgumentException e) {
                 // Token inválido o expirado: la petición sigue sin autenticar
             }

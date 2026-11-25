@@ -24,6 +24,7 @@ const state = {
   view: "discover", sec: "home", secValue: "", search: "", order: "relevance", plFilter: "",
   layout: "grid", shown: PAGE, tab: "platforms", games: [],
 }; state.closed = JSON.parse(localStorage.getItem("closedGroups") || "{}");
+state.twoFactor = localStorage.getItem("twoFactor") === "true";
 
 /* ---------- Utilidades ---------- */
 const $ = (s) => document.querySelector(s);
@@ -66,12 +67,14 @@ async function api(path, opts = {}) {
   const res = await fetch(API + path, { ...opts, headers });
   if (!res.ok) {
     let msg = res.status + " " + res.statusText;
+    let fromServer = false;
     try {
       const j = await res.json();
-      msg = j.detail || j.error || j.message || msg;
+      const m = j.detail || j.error || j.message;
+      if (m) { msg = m; fromServer = true; }
       if (j.errors) msg += ": " + Object.entries(j.errors).map(([k, v]) => k + " " + v).join(", ");
     } catch {}
-    if (res.status === 401 || res.status === 403)
+    if (res.status === 403 || (res.status === 401 && !fromServer))
       msg = state.token ? "Sin permiso o sesión expirada. Vuelve a iniciar sesión." : "Inicia sesión para hacer esto.";
     throw new Error(msg);
   }
@@ -442,15 +445,21 @@ function hideModal() { $("#modal").classList.add("hidden"); }
 $("#modal").addEventListener("click", e => { if (e.target.id === "modal") hideModal(); });
 
 /* ---------- Login / Registro ---------- */
+function saveSession(d) {
+  state.token = d.token; state.email = d.email; state.rol = d.rol; state.twoFactor = !!d.twoFactor;
+  localStorage.setItem("token", d.token); localStorage.setItem("email", d.email);
+  localStorage.setItem("rol", d.rol); localStorage.setItem("twoFactor", String(state.twoFactor));
+  hideModal(); updateUser(); toast("Bienvenido"); go(state.view);
+}
+
+function logout() {
+  ["token", "email", "rol", "twoFactor"].forEach(k => localStorage.removeItem(k));
+  state.token = state.email = state.rol = null; state.twoFactor = false;
+  hideModal(); updateUser(); openSection("home");
+}
+
 function authDialog() {
-  if (state.token) {
-    showModal(`<h3>Sesión: ${esc(state.email)}</h3><p class="muted">Rol: ${esc(state.rol)}</p><div class="row"><button class="btn" id="lo">Cerrar sesión</button></div>`);
-    $("#lo").onclick = () => {
-      localStorage.clear(); state.token = state.email = state.rol = null;
-      hideModal(); updateUser(); openSection("home");
-    };
-    return;
-  }
+  if (state.token) return accountDialog();
   showModal(`
     <h3>Iniciar sesión / Registrarse</h3>
     <div class="row"><input id="au" placeholder="Usuario (solo para registro)"></div>
@@ -460,15 +469,98 @@ function authDialog() {
   $("#li").onclick = async () => {
     try {
       const d = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: $("#ae").value, password: $("#ap").value }) });
-      state.token = d.token; state.email = d.email; state.rol = d.rol;
-      localStorage.setItem("token", d.token); localStorage.setItem("email", d.email); localStorage.setItem("rol", d.rol);
-      hideModal(); updateUser(); toast("Bienvenido"); go(state.view);
+      if (d.step === "CODE") codeDialog(d.tempToken);
+      else if (d.step === "SETUP") setupDialog(d.setupToken);
+      else saveSession(d);
     } catch (e) { toast(e.message, true); }
   };
   $("#re").onclick = async () => {
     try {
       await api("/api/auth/register", { method: "POST", body: JSON.stringify({ username: $("#au").value, email: $("#ae").value, password: $("#ap").value }) });
       toast("Registrado. Ahora presiona Entrar");
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+function codeDialog(tempToken) {
+  showModal(`
+    <h3>Verificación en dos pasos</h3>
+    <p class="muted">Escribe el código de 6 dígitos de tu app de autenticación, o un código de recuperación.</p>
+    <div class="row"><input id="cd" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="19"></div>
+    <div class="row"><button class="btn" id="cv">Verificar</button><button class="btn light" id="cx">Cancelar</button></div>`);
+  $("#cd").focus();
+  const submit = async () => {
+    try {
+      saveSession(await api("/api/auth/2fa/verify", { method: "POST", body: JSON.stringify({ tempToken, code: $("#cd").value }) }));
+    } catch (e) { toast(e.message, true); }
+  };
+  $("#cv").onclick = submit;
+  $("#cd").addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+  $("#cx").onclick = hideModal;
+}
+
+async function setupDialog(setupToken = null) {
+  showModal(`<p>Preparando...</p>`);
+  try {
+    const s = await api("/api/auth/2fa/setup", { method: "POST", body: JSON.stringify({ setupToken }) });
+    showModal(`
+      <h3>Activar verificación en dos pasos</h3>
+      ${setupToken ? `<p class="muted">Como administrador, es obligatorio activarla para continuar.</p>` : ""}
+      <p class="muted">1. Abre Google Authenticator (o similar) y escanea este código QR.</p>
+      <div style="text-align:center"><img src="${esc(s.qr)}" alt="Código QR" width="200" height="200"></div>
+      <p class="muted">¿No puedes escanearlo? Escribe esta clave: <b>${esc(s.secret)}</b></p>
+      <p class="muted">2. Escribe el código de 6 dígitos que muestra la app.</p>
+      <div class="row"><input id="sc" inputmode="numeric" placeholder="123456" maxlength="6"></div>
+      <div class="row"><button class="btn" id="se">Activar</button><button class="btn light" id="sx">Cancelar</button></div>`);
+    $("#sx").onclick = hideModal;
+    $("#se").onclick = async () => {
+      try {
+        const r = await api("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ setupToken, code: $("#sc").value }) });
+        recoveryDialog(r.recoveryCodes, setupToken ? r : null);
+      } catch (e) { toast(e.message, true); }
+    };
+  } catch (e) { showModal(`<p>${esc(e.message)}</p><button class="btn" onclick="hideModal()">Cerrar</button>`); }
+}
+
+function recoveryDialog(codes, session) {
+  showModal(`
+    <h3>Guarda tus códigos de recuperación</h3>
+    <p class="muted">Cada código sirve una sola vez si pierdes acceso a tu app. Se muestran solo ahora: cópialos o anótalos en un lugar seguro.</p>
+    <div class="card" style="font-family:monospace;line-height:1.9;text-align:center">${codes.map(c => esc(c)).join("<br>")}</div>
+    <div class="row"><button class="btn light" id="rc">Copiar</button><button class="btn" id="rd">Ya los guardé</button></div>`);
+  $("#rc").onclick = () => navigator.clipboard.writeText(codes.join("\n")).then(() => toast("Copiados"));
+  $("#rd").onclick = () => {
+    if (session) saveSession(session);
+    else { state.twoFactor = true; localStorage.setItem("twoFactor", "true"); hideModal(); toast("2FA activado"); }
+  };
+}
+
+function accountDialog() {
+  showModal(`
+    <h3>Sesión: ${esc(state.email)}</h3>
+    <p class="muted">Rol: ${esc(state.rol)} · Verificación en dos pasos: ${state.twoFactor ? "activada" : "desactivada"}</p>
+    <div class="row">
+      ${state.twoFactor
+        ? (isAdmin() ? "" : `<button class="btn light" id="t2">Desactivar 2FA</button>`)
+        : `<button class="btn light" id="t2">Activar 2FA</button>`}
+      <button class="btn" id="lo">Cerrar sesión</button>
+    </div>`);
+  $("#lo").onclick = logout;
+  if ($("#t2")) $("#t2").onclick = () => (state.twoFactor ? disableDialog() : setupDialog());
+}
+
+function disableDialog() {
+  showModal(`
+    <h3>Desactivar verificación en dos pasos</h3>
+    <div class="row"><input id="dp" type="password" placeholder="Contraseña"></div>
+    <div class="row"><input id="dc" inputmode="numeric" placeholder="Código de 6 dígitos" maxlength="6"></div>
+    <div class="row"><button class="btn" id="dd">Desactivar</button><button class="btn light" id="dx">Cancelar</button></div>`);
+  $("#dx").onclick = hideModal;
+  $("#dd").onclick = async () => {
+    try {
+      await api("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ password: $("#dp").value, code: $("#dc").value }) });
+      state.twoFactor = false; localStorage.setItem("twoFactor", "false");
+      hideModal(); toast("2FA desactivado");
     } catch (e) { toast(e.message, true); }
   };
 }
