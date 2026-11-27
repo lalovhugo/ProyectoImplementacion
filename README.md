@@ -238,11 +238,13 @@ Los datos de videojuegos y las imágenes provienen de [RAWG](https://rawg.io). S
 
 ## Cómo ejecutar
 
-1. Abrir el repositorio en VS Code y elegir **Reopen in Container**.
-2. Levantar PostgreSQL: `docker compose up -d`.
-3. Definir la variable de entorno `RAWG_API_KEY` con la clave obtenida en [rawg.io/apidocs](https://rawg.io/apidocs).
-4. Ejecutar `mvn spring-boot:run`.
-5. Abrir Swagger en `http://localhost:8080/swagger-ui/index.html`.
+1. Abrir el repositorio en VS Code y elegir **Reopen in Container** (o ejecutarlo en el entorno local/Codespace con PostgreSQL disponible en `db:5432` o `localhost:5432`).
+2. Asegurar que el servicio de PostgreSQL esté activo y configurada la base de datos `gamelogdb`.
+3. Definir la variable de entorno `RAWG_API_KEY` con tu clave de [rawg.io/apidocs](https://rawg.io/apidocs) (y `JWT_SECRET` si aplica en el entorno):
+   ```bash
+   RAWG_API_KEY=tu_clave_rawg mvn spring-boot:run
+   ```
+4. Abrir la aplicación en `http://localhost:8080` y Swagger UI en `http://localhost:8080/swagger-ui/index.html`.
 
 ---
 
@@ -415,7 +417,7 @@ Uso en Swagger: registrar con `POST /api/auth/register`, iniciar sesión con `PO
 Para volver administrador a un usuario:
 
 ```bash
-docker exec -it gamelog-postgres psql -U postgres -d gamelogdb -c "UPDATE users SET rol='ADMIN' WHERE email='correo@ejemplo.com';"
+psql -h db -U postgres -d gamelogdb -c "UPDATE users SET rol='ADMIN' WHERE email='correo@ejemplo.com';"
 ```
 
 ### Problemas encontrados y soluciones
@@ -424,7 +426,7 @@ docker exec -it gamelog-postgres psql -U postgres -d gamelogdb -c "UPDATE users 
 |----------|-------|----------|
 | `package lombok does not exist` | Faltaba la dependencia en el `pom.xml` | Agregar Lombok |
 | `cannot find symbol` en `getId()`, `setName()`, etc. | Java 25 no ejecuta Lombok sin configuración | Configurar `annotationProcessorPaths` |
-| `Connection to localhost:5432 refused` | El contenedor de PostgreSQL no estaba encendido | `docker compose up -d` |
+| `Connection to localhost:5432 refused` | El contenedor de PostgreSQL no estaba encendido | Asegurar que el servicio de PostgreSQL esté iniciado |
 | `mvnw: no such file` | El repositorio no incluye el wrapper de Maven | Usar `mvn` directamente |
 | `Failed to fetch` al probar endpoints en Swagger | Swagger llamaba a `localhost:8080` y desde el navegador ese host no es el Codespace | Definir el servidor como `/` en `OpenApiConfig` |
 | `class AuthController is public, should be declared in a file named AuthController.java` | El nombre del archivo no coincidía con el de la clase | Renombrar el archivo |

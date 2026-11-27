@@ -33,7 +33,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const list = (d) => (Array.isArray(d) ? d : d?.content ?? []);
 const isAdmin = () => state.rol === "ADMIN";
-const initials = (t) => t.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+const initials = (t) => String(t ?? "")
+  .replace(/[^a-zA-Z0-9\s]/g, "")
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map(w => w[0])
+  .join("")
+  .toUpperCase() || "GL";
 const svg = (p) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const ICON = {
   home: svg('<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>'),
@@ -61,6 +68,37 @@ function grad(s) {
   let h = 0;
   for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360;
   return `linear-gradient(135deg,hsl(${h},70%,82%),hsl(${(h + 50) % 360},70%,76%))`;
+}
+
+function coverMedia(title, coverUrl, boxClass = "media") {
+  const safeTitle = esc(title || "Juego");
+  const init = esc(initials(title || "GL"));
+  const bg = grad(title || "GL");
+  const safeUrl = coverUrl ? esc(coverUrl) : "";
+
+  if (!safeUrl) {
+    return `<div class="${boxClass}" style="background:${bg}">${init}</div>`;
+  }
+
+  return `
+    <div class="${boxClass}" style="background:${bg}" data-fallback-title="${safeTitle}" data-fallback-init="${init}" data-fallback-bg="${esc(bg)}">
+      <img src="${safeUrl}" alt="${safeTitle}" loading="lazy">
+    </div>`;
+}
+
+function bindCoverFallbacks(container = document) {
+  container.querySelectorAll(".media img, .cover img").forEach(img => {
+    if (img.dataset.bound) return;
+    img.dataset.bound = "1";
+    img.addEventListener("error", () => {
+      const box = img.parentElement;
+      if (!box) return;
+      const bg = box.dataset.fallbackBg || grad(box.dataset.fallbackTitle || "GL");
+      const init = box.dataset.fallbackInit || initials(box.dataset.fallbackTitle || "GL");
+      box.style.background = bg;
+      box.innerHTML = `<div class="cover-fallback" style="background:${bg}">${esc(init)}</div>`;
+    }, { once: true });
+  });
 }
 
 function toast(msg, err = false) {
@@ -92,7 +130,7 @@ async function api(path, opts = {}) {
 
 const fetchAll = async (url) => list(await api(url + "?size=200"));
 
-/* Game del backend: id, titulo, plataformas (texto), anio, genre{}, platforms[] */
+/* Game del backend: id, titulo, plataformas (texto), anio, coverUrl, genre{}, platforms[] */
 function norm(g) {
   return {
     id: g.id,
@@ -101,6 +139,7 @@ function norm(g) {
     genre: g.genre?.name ?? "",
     platforms: g.platforms ?? [],
     legacy: g.plataformas ?? "",
+    coverUrl: g.coverUrl ?? "",
   };
 }
 const allGames = async () => list(await api("/api/games")).map(norm);
@@ -209,7 +248,7 @@ $("#q").addEventListener("input", e => {
 /* ---------- Inicio / descubrir (estilo RAWG) ---------- */
 const card = (g) => `
   <article class="g-card" data-id="${g.id}">
-    <div class="media" style="background:${grad(g.title)}">${esc(initials(g.title))}</div>
+    ${coverMedia(g.title, g.coverUrl, "media")}
     <div class="g-body">
       <div class="pfs">${g.platforms.map(p => `<span class="pf">${esc(p.name)}</span>`).join("") || `<span class="pf">—</span>`}</div>
       <h3 class="g-title">${esc(g.title)}</h3>
@@ -262,6 +301,7 @@ function discover() {
     <div class="games ${state.layout}">${shown.map(card).join("") || "<p class='muted'>No hay juegos que coincidan.</p>"}</div>
     ${items.length > shown.length ? `<div class="more"><button class="btn" id="more">Cargar más</button></div>` : ""}`;
 
+  bindCoverFallbacks(v);
   $("#ord").onchange = e => { state.order = e.target.value; state.shown = PAGE; discover(); };
   $("#plt").onchange = e => { state.plFilter = e.target.value; state.shown = PAGE; discover(); };
   v.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { state.layout = b.dataset.l; discover(); });
@@ -364,6 +404,7 @@ async function diary() {
     const q = state.logFilter ? `?status=${state.logFilter}` : "";
     const entries = await api("/api/log" + q);
     const labelOf = Object.fromEntries(LOG_STATUS);
+    const coverById = new Map(state.games.map(g => [String(g.id), g.coverUrl]));
 
     v.innerHTML = `
       <h1 class="page-title">Mi Diario</h1>
@@ -378,7 +419,7 @@ async function diary() {
       <div class="games">
         ${entries.map(e => `
           <article class="g-card" data-id="${e.gameId}">
-            <div class="media" style="background:${grad(e.gameTitle)}">${esc(initials(e.gameTitle))}</div>
+            ${coverMedia(e.gameTitle, e.coverUrl ?? coverById.get(String(e.gameId)) ?? "", "media")}
             <div class="g-body">
               <span class="status-pill status-${e.status}">${esc(labelOf[e.status] || e.status)}</span>
               <h3 class="g-title">${esc(e.gameTitle)}</h3>
@@ -390,6 +431,7 @@ async function diary() {
           </article>`).join("") || `<p class="muted">Aún no tienes juegos en esta lista. Abre cualquier juego del catálogo para agregarlo.</p>`}
       </div>`;
 
+    bindCoverFallbacks(v);
     v.querySelectorAll("[data-lf]").forEach(b => b.onclick = () => { state.logFilter = b.dataset.lf; diary(); });
     v.querySelectorAll(".g-card").forEach(el => el.onclick = () => openGame(el.dataset.id));
   } catch (e) {
@@ -420,7 +462,7 @@ async function openGame(id) {
     const ratings = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
     showModal(`
-      <div class="cover" style="background:${grad(g.title)}">${esc(initials(g.title))}</div>
+      ${coverMedia(g.title, g.coverUrl, "cover")}
       <h2 style="margin-top:12px">${esc(g.title)}</h2>
       <p class="muted">${esc(g.year)} · ${esc(g.genre || "Sin género")}</p>
       <div class="rating-badge">★ ${summary.totalReviews ? `${summary.averageRating} / 5 (${summary.totalReviews})` : "Sin calificaciones"}</div>
@@ -574,7 +616,11 @@ async function admin() {
 }
 
 /* ---------- Modal ---------- */
-function showModal(html) { $("#modalBox").innerHTML = html; $("#modal").classList.remove("hidden"); }
+function showModal(html) {
+  $("#modalBox").innerHTML = html;
+  $("#modal").classList.remove("hidden");
+  bindCoverFallbacks($("#modalBox"));
+}
 function hideModal() { $("#modal").classList.add("hidden"); }
 $("#modal").addEventListener("click", e => { if (e.target.id === "modal") hideModal(); });
 

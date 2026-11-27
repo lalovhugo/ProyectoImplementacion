@@ -46,17 +46,21 @@ small,.muted{color:var(--muted);font-size:12px}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 20px}
 .sel{background:var(--card);border-radius:12px;padding:0 6px 0 14px;display:flex;align-items:center;gap:6px;font-size:14px}
 .sel select{border:0;background:transparent;width:auto;font-weight:700;padding:10px 8px;outline:0;cursor:pointer}
-.disp{margin-left:auto;display:flex;gap:6px;align-items:center}
-.disp button{width:44px;height:40px;border-radius:10px;background:var(--card);font-size:18px}
+.disp{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.disp button{width:44px;height:40px;border-radius:10px;background:var(--card);font-size:18px;display:grid;place-items:center}
 .disp button.on{background:var(--ink);color:#fff}
 
-/* Tarjetas de juego */
+/* Tarjetas de juego y portadas RAWG */
 .games{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px;align-items:start}
 .g-card{background:var(--card);border-radius:20px;overflow:hidden;cursor:pointer;transition:.25s;box-shadow:0 4px 24px #6c5ce711}
 .g-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px #6c5ce722}
-.media,.cover{display:grid;place-items:center;color:#ffffffcc;font-weight:800;letter-spacing:.05em}
+.media,.cover{display:grid;place-items:center;color:#ffffffcc;font-weight:800;letter-spacing:.05em;position:relative;overflow:hidden;width:100%}
 .media{height:150px;font-size:44px}
-.cover{height:150px;border-radius:18px;font-size:48px}
+.cover{height:180px;border-radius:18px;font-size:48px}
+.media img,.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover-fallback{width:100%;height:100%;display:grid;place-items:center;color:#ffffffcc;font-weight:800;letter-spacing:.05em}
+.media .cover-fallback{font-size:44px}
+.cover .cover-fallback{font-size:48px}
 .g-body{padding:14px 16px}
 .pfs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .pf{font-size:10px;font-weight:700;background:var(--lav);border-radius:6px;padding:2px 7px}
@@ -67,7 +71,7 @@ small,.muted{color:var(--muted);font-size:12px}
 .xrow span{color:var(--muted)}
 .games.list{grid-template-columns:1fr}
 .games.list .g-card{display:flex}
-.games.list .media{width:200px;height:auto;flex:none}
+.games.list .media{width:200px;height:130px;flex:none}
 .games.list .g-body{flex:1}
 .games.list .extra{max-height:none;opacity:1;margin-top:10px}
 .more{text-align:center;margin:22px 0}
@@ -120,11 +124,10 @@ small,.muted{color:var(--muted);font-size:12px}
   .topbar{flex-wrap:wrap}
   [class*=span-]{grid-column:span 12}
   .games.list .g-card{flex-direction:column}
-  .games.list .media{width:100%;height:120px}
+  .games.list .media{width:100%;height:150px}
 }
 
 .ico svg,.disp svg{display:block}
-.disp button{display:grid;place-items:center}
 .searchbar svg{color:var(--muted);flex:none}
 
 /* Botón de tema */
