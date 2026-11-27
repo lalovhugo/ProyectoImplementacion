@@ -33,4 +33,10 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Nombre duplicado o registro en uso por otras entidades");
     }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ProblemDetail status(org.springframework.web.server.ResponseStatusException ex) {
+        return ProblemDetail.forStatusAndDetail(ex.getStatusCode(),
+                ex.getReason() != null ? ex.getReason() : ex.getMessage());
+    }
 }

@@ -351,15 +351,26 @@ async function openGame(id) {
   try {
     const g = (await allGames()).find(x => String(x.id) === String(id));
     if (!g) throw new Error("Juego no encontrado");
-    const allPlats = isAdmin() ? await fetchAll(TABS.platforms.url) : [];
+
+    const [allPlats, summary, revPage] = await Promise.all([
+      isAdmin() ? fetchAll(TABS.platforms.url) : Promise.resolve([]),
+      api(`/api/games/${id}/reviews/summary`).catch(() => ({ averageRating: 0, totalReviews: 0 })),
+      api(`/api/games/${id}/reviews?size=20`).catch(() => ({ content: [] })),
+    ]);
+
+    const reviews = list(revPage);
+    const myReview = state.email ? reviews.find(r => r.userEmail === state.email) : null;
     const mine = new Set(g.platforms.map(p => p.id));
     const free = allPlats.filter(p => !mine.has(p.id));
+    const ratings = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
     showModal(`
       <div class="cover" style="background:${grad(g.title)}">${esc(initials(g.title))}</div>
       <h2 style="margin-top:12px">${esc(g.title)}</h2>
       <p class="muted">${esc(g.year)} · ${esc(g.genre || "Sin género")}</p>
-      <h3 style="margin-top:12px">Plataformas</h3>
+      <div class="rating-badge">★ ${summary.totalReviews ? `${summary.averageRating} / 5 (${summary.totalReviews})` : "Sin calificaciones"}</div>
+
+      <h3 style="margin-top:14px">Plataformas</h3>
       <div>${g.platforms.map(p => `<span class="chip">${esc(p.name)}${isAdmin() ? `<button data-rm="${p.id}">×</button>` : ""}</span>`).join("")
         || `<small class="muted">${esc(g.legacy) || "Sin plataformas asociadas"}</small>`}</div>
       ${isAdmin() && free.length ? `
@@ -367,10 +378,42 @@ async function openGame(id) {
           <select id="pSel">${free.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
           <button class="btn light" id="pAdd">Asociar plataforma</button>
         </div>` : ""}
-      <div class="row">
+
+      <div class="reviews-sec">
+        <h3>Reseñas</h3>
+        ${state.token ? `
+          <div class="rev-form">
+            <div class="row" style="margin-top:0">
+              <select id="rRate">
+                ${ratings.map(v => `<option value="${v}"${(myReview?.rating ?? 5) === v ? " selected" : ""}>★ ${v.toFixed(1)}</option>`).join("")}
+              </select>
+              <button class="btn" id="rSave" style="flex:none">${myReview ? "Actualizar mi reseña" : "Publicar reseña"}</button>
+            </div>
+            <textarea id="rText" maxlength="1000" placeholder="Escribe tu opinión sobre este juego...">${esc(myReview?.text || "")}</textarea>
+          </div>` : `<p class="muted" style="margin:8px 0">Inicia sesión para escribir una reseña.</p>`}
+
+        ${reviews.map(r => {
+          const canDel = state.email && (r.userEmail === state.email || isAdmin());
+          const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-MX") : "";
+          return `
+            <div class="rev-item">
+              <div class="rev-head">
+                <b>${esc(r.username)} · ★ ${Number(r.rating).toFixed(1)}</b>
+                <span>
+                  <small class="muted">${esc(date)}</small>
+                  ${canDel ? ` <button class="del" data-rdel="${r.id}">Eliminar</button>` : ""}
+                </span>
+              </div>
+              <p class="rev-text">${esc(r.text)}</p>
+            </div>`;
+        }).join("") || `<p class="muted" style="margin-top:8px">Aún no hay reseñas para este juego.</p>`}
+      </div>
+
+      <div class="row" style="margin-top:16px">
         ${isAdmin() ? `<button class="btn light" id="gDel" style="color:var(--danger)">Eliminar juego</button>` : ""}
         <button class="btn" id="closeBtn">Cerrar</button>
       </div>`);
+
     $("#closeBtn").onclick = hideModal;
     document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () =>
       act(() => api(`/api/games/${id}/platforms/${b.dataset.rm}`, { method: "DELETE" }), "Plataforma quitada")
@@ -383,6 +426,19 @@ async function openGame(id) {
         act(() => api("/api/games/" + id, { method: "DELETE" }), "Juego eliminado")
           .then(async () => { hideModal(); await refresh(); });
     };
+    if ($("#rSave")) $("#rSave").onclick = () => {
+      const payload = { rating: Number($("#rRate").value), text: $("#rText").value.trim() };
+      if (!payload.text) { toast("Escribe el texto de tu reseña", true); return; }
+      const req = myReview
+        ? () => api(`/api/reviews/${myReview.id}`, { method: "PUT", body: JSON.stringify(payload) })
+        : () => api(`/api/games/${id}/reviews`, { method: "POST", body: JSON.stringify(payload) });
+      act(req, myReview ? "Reseña actualizada" : "Reseña publicada").then(() => openGame(id));
+    };
+    document.querySelectorAll("[data-rdel]").forEach(b => b.onclick = () => {
+      if (confirm("¿Eliminar esta reseña?"))
+        act(() => api(`/api/reviews/${b.dataset.rdel}`, { method: "DELETE" }), "Reseña eliminada")
+          .then(() => openGame(id));
+    });
   } catch (e) { showModal(`<p>Error: ${esc(e.message)}</p><button class="btn" onclick="hideModal()">Cerrar</button>`); }
 }
 

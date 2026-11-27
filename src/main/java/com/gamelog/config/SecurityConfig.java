@@ -26,6 +26,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/games/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/games/*/reviews").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/games/**").hasRole("ADMIN")
                 .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
@@ -38,4 +39,4 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-} 
+}

@@ -156,3 +156,14 @@ small,.muted{color:var(--muted);font-size:12px}
 [data-theme="dark"] .item.on .ico{background:#14142a30;color:#14142a}
 [data-theme="dark"] .toast{color:#14142a}
 [data-theme="dark"] .toast.err{color:#fff}
+
+/* Reseñas y calificaciones */
+.rating-badge{display:inline-flex;align-items:center;gap:6px;background:var(--lav);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700;margin-top:8px}
+.reviews-sec{margin-top:18px;padding-top:14px;border-top:1px solid #eee}
+.rev-item{padding:12px 0;border-bottom:1px solid #eee}
+.rev-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;margin-bottom:4px}
+.rev-text{font-size:14px;line-height:1.45;white-space:pre-wrap}
+.rev-form{margin:12px 0;padding:12px;border-radius:16px;background:var(--bg1)}
+.rev-form textarea{min-height:76px;resize:vertical}
+[data-theme="dark"] .reviews-sec,[data-theme="dark"] .rev-item{border-color:#34345a}
+[data-theme="dark"] .rev-form{background:#14142a}
