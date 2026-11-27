@@ -22,8 +22,9 @@ const SORTERS = {
 const state = {
   token: localStorage.getItem("token"), email: localStorage.getItem("email"), rol: localStorage.getItem("rol"),
   view: "discover", sec: "home", secValue: "", search: "", order: "relevance", plFilter: "",
-  layout: "grid", shown: PAGE, tab: "platforms", games: [],
-}; state.closed = JSON.parse(localStorage.getItem("closedGroups") || "{}");
+  layout: "grid", shown: PAGE, tab: "platforms", games: [], logFilter: "",
+};
+state.closed = JSON.parse(localStorage.getItem("closedGroups") || "{}");
 state.twoFactor = localStorage.getItem("twoFactor") === "true";
 
 /* ---------- Utilidades ---------- */
@@ -46,8 +47,15 @@ const ICON = {
   list: svg('<path d="M4 6h16M4 12h16M4 18h16"/>'),
 };
 ICON.chev = svg('<path d="M6 9l6 6 6-6"/>');
+ICON.book = svg('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>');
 const SUN = svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>');
 const MOON = svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>');
+const LOG_STATUS = [
+  ["PENDIENTE", "Pendiente"],
+  ["JUGANDO", "Jugando"],
+  ["TERMINADO", "Terminado"],
+  ["ABANDONADO", "Abandonado"],
+];
 
 function grad(s) {
   let h = 0;
@@ -128,7 +136,8 @@ function renderSide() {
     ${group("explore", "Explorar", `
       <button class="item${on(sec("all"))}" data-sec="all"><span class="ico">${ICON.game}</span>Todos los juegos</button>
       <button class="item${on(sec("classics"))}" data-sec="classics"><span class="ico">${ICON.trophy}</span>Clásicos</button>
-      <button class="item${on(state.view === "dashboard")}" data-view="dashboard"><span class="ico">${ICON.chart}</span>Estadísticas</button>`)}
+      <button class="item${on(state.view === "dashboard")}" data-view="dashboard"><span class="ico">${ICON.chart}</span>Estadísticas</button>
+      ${state.token ? `<button class="item${on(state.view === "diary")}" data-view="diary"><span class="ico">${ICON.book}</span>Mi Diario</button>` : ""}`)}
 
     ${group("plats", "Plataformas",
       plats.map(n => `<button class="item${on(sec("platform") && state.secValue === n)}" data-plat="${esc(n)}"><span class="ico">${esc(n[0])}</span>${esc(n)}</button>`).join("")
@@ -183,7 +192,7 @@ function openSection(sec, value = "") {
 function go(view) {
   state.view = view;
   renderSide();
-  ({ discover, dashboard, admin })[view]();
+  ({ discover, dashboard, diary, admin })[view]();
 }
 
 let timer;
@@ -343,6 +352,51 @@ function lineChart(vals) {
   </svg>`;
 }
 
+/* ---------- Mi Diario y Backlog ---------- */
+async function diary() {
+  const v = $("#view");
+  if (!state.token) {
+    v.innerHTML = `<h1 class="page-title">Mi Diario</h1><p class="muted">Inicia sesión para llevar el registro de tus juegos.</p>`;
+    return;
+  }
+  v.innerHTML = `<h1 class="page-title">Mi Diario</h1><p class="muted">Cargando...</p>`;
+  try {
+    const q = state.logFilter ? `?status=${state.logFilter}` : "";
+    const entries = await api("/api/log" + q);
+    const labelOf = Object.fromEntries(LOG_STATUS);
+
+    v.innerHTML = `
+      <h1 class="page-title">Mi Diario</h1>
+      <p class="muted">Tu registro personal de juegos y lista de pendientes (backlog)</p>
+      <div class="controls">
+        <div class="tabs">
+          <button class="pill ${!state.logFilter ? "active" : ""}" data-lf="">Todos</button>
+          ${LOG_STATUS.map(([k, l]) => `<button class="pill ${state.logFilter === k ? "active" : ""}" data-lf="${k}">${l}</button>`).join("")}
+        </div>
+        <span class="muted">${entries.length} juegos</span>
+      </div>
+      <div class="games">
+        ${entries.map(e => `
+          <article class="g-card" data-id="${e.gameId}">
+            <div class="media" style="background:${grad(e.gameTitle)}">${esc(initials(e.gameTitle))}</div>
+            <div class="g-body">
+              <span class="status-pill status-${e.status}">${esc(labelOf[e.status] || e.status)}</span>
+              <h3 class="g-title">${esc(e.gameTitle)}</h3>
+              <div class="extra" style="max-height:none;opacity:1;margin-top:8px">
+                <div class="xrow"><span>Año</span><b>${esc(e.gameYear || "—")}</b></div>
+                <div class="xrow"><span>Fecha</span><b>${esc(e.playedDate || "—")}</b></div>
+              </div>
+            </div>
+          </article>`).join("") || `<p class="muted">Aún no tienes juegos en esta lista. Abre cualquier juego del catálogo para agregarlo.</p>`}
+      </div>`;
+
+    v.querySelectorAll("[data-lf]").forEach(b => b.onclick = () => { state.logFilter = b.dataset.lf; diary(); });
+    v.querySelectorAll(".g-card").forEach(el => el.onclick = () => openGame(el.dataset.id));
+  } catch (e) {
+    v.innerHTML = `<h1 class="page-title">Mi Diario</h1><p>Error: ${esc(e.message)}</p>`;
+  }
+}
+
 /* ---------- Detalle de juego ---------- */
 async function refresh() { await load(); go(state.view); }
 
@@ -352,10 +406,11 @@ async function openGame(id) {
     const g = (await allGames()).find(x => String(x.id) === String(id));
     if (!g) throw new Error("Juego no encontrado");
 
-    const [allPlats, summary, revPage] = await Promise.all([
+    const [allPlats, summary, revPage, myLog] = await Promise.all([
       isAdmin() ? fetchAll(TABS.platforms.url) : Promise.resolve([]),
       api(`/api/games/${id}/reviews/summary`).catch(() => ({ averageRating: 0, totalReviews: 0 })),
       api(`/api/games/${id}/reviews?size=20`).catch(() => ({ content: [] })),
+      state.token ? api(`/api/log/game/${id}`).catch(() => null) : Promise.resolve(null),
     ]);
 
     const reviews = list(revPage);
@@ -369,6 +424,15 @@ async function openGame(id) {
       <h2 style="margin-top:12px">${esc(g.title)}</h2>
       <p class="muted">${esc(g.year)} · ${esc(g.genre || "Sin género")}</p>
       <div class="rating-badge">★ ${summary.totalReviews ? `${summary.averageRating} / 5 (${summary.totalReviews})` : "Sin calificaciones"}</div>
+
+      ${state.token ? `
+        <div class="log-bar">
+          <h3>Mi Diario / Backlog</h3>
+          <div class="log-btns">
+            ${LOG_STATUS.map(([k, l]) => `<button class="log-btn${myLog?.status === k ? " on" : ""}" data-st="${k}">${l}</button>`).join("")}
+            ${myLog ? `<button class="log-btn" id="logRm" style="color:var(--danger)">Quitar</button>` : ""}
+          </div>
+        </div>` : ""}
 
       <h3 style="margin-top:14px">Plataformas</h3>
       <div>${g.platforms.map(p => `<span class="chip">${esc(p.name)}${isAdmin() ? `<button data-rm="${p.id}">×</button>` : ""}</span>`).join("")
@@ -415,6 +479,20 @@ async function openGame(id) {
       </div>`);
 
     $("#closeBtn").onclick = hideModal;
+    document.querySelectorAll("[data-st]").forEach(b => b.onclick = () =>
+      act(() => api("/api/log", {
+        method: "POST",
+        body: JSON.stringify({ gameId: Number(id), status: b.dataset.st }),
+      }), "Estado guardado en tu diario").then(() => {
+        if (state.view === "diary") diary();
+        openGame(id);
+      }));
+    if ($("#logRm")) $("#logRm").onclick = () =>
+      act(() => api(`/api/log/${myLog.id}`, { method: "DELETE" }), "Quitado de tu diario")
+        .then(() => {
+          if (state.view === "diary") diary();
+          openGame(id);
+        });
     document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () =>
       act(() => api(`/api/games/${id}/platforms/${b.dataset.rm}`, { method: "DELETE" }), "Plataforma quitada")
         .then(async () => { await refresh(); openGame(id); }));
