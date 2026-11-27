@@ -167,3 +167,19 @@ small,.muted{color:var(--muted);font-size:12px}
 .rev-form textarea{min-height:76px;resize:vertical}
 [data-theme="dark"] .reviews-sec,[data-theme="dark"] .rev-item{border-color:#34345a}
 [data-theme="dark"] .rev-form{background:#14142a}
+
+/* Diario y Backlog */
+.log-bar{margin-top:14px;padding:12px;border-radius:16px;background:var(--bg1)}
+.log-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.log-btn{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:var(--card);border:1px solid #e3e3f0;transition:.15s}
+.log-btn:hover{background:var(--lav)}
+.log-btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.status-pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--lav);margin-bottom:6px}
+.status-PENDIENTE{background:var(--blue)}
+.status-JUGANDO{background:var(--lav)}
+.status-TERMINADO{background:var(--green)}
+.status-ABANDONADO{background:#ffd6dc;color:#9e1c30}
+[data-theme="dark"] .log-bar{background:#14142a}
+[data-theme="dark"] .log-btn{border-color:#34345a}
+[data-theme="dark"] .log-btn.on{color:#14142a}
+[data-theme="dark"] .status-ABANDONADO{background:#5a232e;color:#ffd6dc}
